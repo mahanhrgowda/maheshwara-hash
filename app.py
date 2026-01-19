@@ -364,4 +364,3 @@ st.markdown("""
 
 # Run instructions
 st.info("To run locally: Save as app.py, then 'streamlit run app.py'. Ensure dependencies: streamlit, matplotlib, qrcode, pillow, pyzbar, dilithium-py (optional). Add 'pyzbar' to requirements.txt for QR decoding.")
-```HAVA
