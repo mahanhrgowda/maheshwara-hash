@@ -264,6 +264,7 @@ if st.button("Encrypt and Generate QR"):
     st.image(qr_buf, caption="Encrypted QR Code")
     st.session_state['encrypted_b64'] = encrypted_b64  # Store for convenience
     st.session_state['encrypt_bhava'] = encrypt_bhava
+    st.session_state['plaintext'] = plaintext  # For optional verification
     st.download_button("Download QR", qr_buf, "encrypted_qr.png")
 st.markdown("""
 **Explanation**: Encrypts plaintext by XOR with key derived solely from Bhāva (using Maheshwara Hash). Base64 encodes result, embeds in QR. This allows direct decryption with just Bhāva, providing PQC-resistant symmetric encryption demo tied to Sanskrit-inspired hashing. Note: For demo purposes; in practice, use stronger keys.
@@ -300,19 +301,23 @@ if st.button("Decrypt"):
             key = key[:len(encrypted)]
             decrypted_bytes = bytes([e ^ k for e, k in zip(encrypted, key)])
             decrypted = decrypted_bytes.decode(errors='ignore')
-            st.write(f"Decrypted Plaintext: {decrypted}")
+            st.subheader("Decrypted Plaintext Output")
+            st.write(decrypted)
             # Optional session check for demo
             if 'encrypt_bhava' in st.session_state and decrypt_bhava == st.session_state['encrypt_bhava']:
-                st.success("Bhāva Match - Decryption Successful!")
+                st.success("Bhāva Match Confirmed - Decryption Successful!")
+                if 'plaintext' in st.session_state:
+                    if decrypted == st.session_state['plaintext']:
+                        st.info("Matches Original Plaintext.")
             else:
-                st.warning("Bhāva may not match - Check if output makes sense.")
+                st.warning("Bhāva may not match - Output may be garbled. Try different Bhāva.")
         except Exception as e:
             st.error(f"Decryption Error: {e}")
     else:
         st.warning("Provide Base64 data via upload or input to decrypt.")
 
 st.markdown("""
-**Explanation**: Decrypts by deriving key solely from Bhāva, XORing with ciphertext to recover plaintext directly. Supports uploading QR images for automatic decoding using pyzbar. This enhanced engine allows output with just QR and Bhāva, demonstrating simple symmetric decryption.
+**Explanation**: The enhanced decryption engine derives the key solely from Bhāva, XORs with the ciphertext from QR/Base64, and directly outputs the plaintext. If Bhāva is incorrect, output will be garbled. Supports automatic QR decoding via upload. This demonstrates simple, Bhāva-based symmetric decryption.
 """)
 
 # Blockchain Demo Section
@@ -359,4 +364,4 @@ st.markdown("""
 
 # Run instructions
 st.info("To run locally: Save as app.py, then 'streamlit run app.py'. Ensure dependencies: streamlit, matplotlib, qrcode, pillow, pyzbar, dilithium-py (optional). Add 'pyzbar' to requirements.txt for QR decoding.")
-```['msg
+```HAVA
