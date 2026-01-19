@@ -115,10 +115,10 @@ def decode_qr_from_image(image):
 class SimpleBlockchain:
     def __init__(self):
         self.chain = []
-        self.create_genesis_block()
         self.pk, self.sk = None, None
         if Dilithium:
             self.pk, self.sk = Dilithium.keygen()
+        self.create_genesis_block()
 
     def create_genesis_block(self):
         genesis = self.create_block("Genesis Block: Om Namah Shivaya", 'Shanta')
