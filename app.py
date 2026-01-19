@@ -8,6 +8,7 @@ import io
 import base64
 import json
 import time
+from pyzbar.pyzbar import decode  # For QR decoding from image
 
 # Note: For Dilithium integration, this app assumes 'dilithium-py' is installed (pip install dilithium-py).
 # If not available in your env, comment out the Dilithium sections or use a placeholder.
@@ -102,6 +103,14 @@ def generate_qr(data):
     buf.seek(0)
     return buf
 
+# Decode QR from uploaded image
+def decode_qr_from_image(image):
+    decoded_objects = decode(image)
+    if decoded_objects:
+        return decoded_objects[0].data.decode('utf-8')
+    else:
+        return None
+
 # Simple Blockchain Simulation Class
 class SimpleBlockchain:
     def __init__(self):
@@ -154,12 +163,10 @@ class SimpleBlockchain:
 # Streamlit App
 st.title("Maheshwara PQC Toolkit with Blockchain Integration")
 st.markdown("""
-This updated Streamlit app integrates all the inventions from the chat history, including the Maheshwara Hash, Bhāva obfuscation, Maheshwara Lattice, PQC signatures using Dilithium, secure messaging, QR encryption/decryption, and now a new Blockchain Integration Demo.
-
-The blockchain demo simulates a simple chain where blocks contain mantras or data hashed with Maheshwara Hash, linked via previous hashes, and optionally signed with Dilithium for PQC security. This demonstrates applications like immutable dharmic contracts, identity proofs, or sankalpa hashes anchored in a tamper-proof ledger.
+This updated Streamlit app integrates all the inventions from the chat history, including the Maheshwara Hash, Bhāva obfuscation, Maheshwara Lattice, PQC signatures using Dilithium, secure messaging, QR encryption/decryption, blockchain demo, and now a new feature to upload a QR code image for automatic decoding and decryption.
 
 **Explanations (Updated):**
-- **Blockchain Integration**: A simulated blockchain uses Maheshwara Hash for block hashing (quantum-resistant via SHA3 + phonetic entropy). Blocks are signed with Dilithium for verifiable integrity. Add blocks with data + Bhāva, view the chain, and validate for tampering.
+- **QR Upload and Decrypt**: Upload a QR image file, automatically decode the Base64 data, then decrypt using the guessed Bhāva and original plaintext (for verification in demo). This enhances usability by handling scanned QR images directly.
 - All previous features remain, with explanations in sections below.
 """)
 
@@ -245,7 +252,7 @@ st.subheader("QR Code Encryption and Decryption")
 plaintext = st.text_input("Enter Plaintext to Encrypt", value="Secret Mantra")
 encrypt_bhava = st.selectbox("Encryption Bhāva", list(BHAVA_MAP.keys()), index=0)
 if st.button("Encrypt and Generate QR"):
-    # Derive "key" from Maheshwara Hash of input + bhava (simple XOR for demo; use proper encryption in prod)
+    # Derive "key" from Maheshwara Hash of plaintext + bhava (simple XOR for demo; use proper encryption in prod)
     _, key_bytes = maheshwara_hash(plaintext + encrypt_bhava, encrypt_bhava)  # Use hash as key
     key = key_bytes[:len(plaintext.encode())]  # Truncate to plaintext byte length
     encrypted = bytes([b ^ key[i % len(key)] for i, b in enumerate(plaintext.encode())])
@@ -262,22 +269,44 @@ st.markdown("""
 
 decrypt_bhava = st.selectbox("Decryption Bhāva Guess", list(BHAVA_MAP.keys()), index=0)
 scanned_data = st.text_input("Enter Scanned QR Data (Base64)", value="")
-if st.button("Decrypt and Verify"):
-    if 'encrypted' in st.session_state:  # For demo; in real, decode from scanned
-        encrypted_b64 = scanned_data or base64.b64encode(st.session_state['encrypted']).decode()
-        encrypted = base64.b64decode(encrypted_b64)
-        _, key_bytes = maheshwara_hash(st.session_state['plaintext'] + decrypt_bhava, decrypt_bhava)
-        key = key_bytes[:len(encrypted)]
-        decrypted = bytes([b ^ key[i % len(key)] for i, b in enumerate(encrypted)]).decode(errors='ignore')
-        st.write(f"Decrypted: {decrypted}")
-        if decrypt_bhava == st.session_state['encrypt_bhava'] and decrypted == st.session_state['plaintext']:
-            st.success("Bhāva Match - Decryption Successful!")
+
+# New Feature: Upload QR Image for Decoding
+uploaded_qr = st.file_uploader("Upload QR Code Image for Decryption", type=["png", "jpg", "jpeg"])
+if uploaded_qr:
+    try:
+        image = Image.open(uploaded_qr)
+        decoded_data = decode_qr_from_image(image)
+        if decoded_data:
+            scanned_data = decoded_data  # Override text input with decoded data
+            st.success("QR Code Decoded Successfully!")
+            st.write(f"Decoded Base64 Data: {scanned_data}")
         else:
-            st.error("Bhāva Mismatch or Data Error - Garbled Output!")
+            st.error("No QR Code detected in the uploaded image.")
+    except Exception as e:
+        st.error(f"Error decoding QR: {e}")
+
+if st.button("Decrypt and Verify"):
+    if 'plaintext' in st.session_state:  # For demo verification; in real app, plaintext might not be stored
+        encrypted_b64 = scanned_data
+        if encrypted_b64:
+            try:
+                encrypted = base64.b64decode(encrypted_b64)
+                _, key_bytes = maheshwara_hash(st.session_state['plaintext'] + decrypt_bhava, decrypt_bhava)
+                key = key_bytes[:len(encrypted)]
+                decrypted = bytes([b ^ key[i % len(key)] for i, b in enumerate(encrypted)]).decode(errors='ignore')
+                st.write(f"Decrypted: {decrypted}")
+                if decrypt_bhava == st.session_state['encrypt_bhava'] and decrypted == st.session_state['plaintext']:
+                    st.success("Bhāva Match - Decryption Successful!")
+                else:
+                    st.error("Bhāva Mismatch or Data Error - Garbled Output!")
+            except Exception as e:
+                st.error(f"Decryption Error: {e}")
+        else:
+            st.warning("Provide scanned data or upload a QR image.")
     else:
-        st.warning("Encrypt first to simulate decryption.")
+        st.warning("Encrypt first to simulate decryption with verification. Alternatively, provide original plaintext for key derivation.")
 st.markdown("""
-**Explanation**: Decrypts by reversing XOR with guessed Bhāva-derived key. Verifies if Bhāva matches for correct output. This feature extends the hash to symmetric encryption for QR-based secure sharing.
+**Explanation**: Decrypts by reversing XOR with guessed Bhāva-derived key. Now supports uploading QR images for automatic decoding using pyzbar. Verifies if Bhāva matches for correct output. This feature extends the hash to symmetric encryption for QR-based secure sharing.
 """)
 
 # Blockchain Demo Section
@@ -323,4 +352,4 @@ st.markdown("""
 """)
 
 # Run instructions
-st.info("To run locally: Save as app.py, then 'streamlit run app.py'. Ensure dependencies: streamlit, matplotlib, qrcode, pillow, dilithium-py (optional).")
+st.info("To run locally: Save as app.py, then 'streamlit run app.py'. Ensure dependencies: streamlit, matplotlib, qrcode, pillow, pyzbar, dilithium-py (optional). Add 'pyzbar' to requirements.txt for QR decoding.")
