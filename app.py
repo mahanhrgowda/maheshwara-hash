@@ -259,25 +259,29 @@ if st.button("Encrypt and Generate QR"):
     encrypted_b64 = base64.b64encode(encrypted).decode()
     qr_buf = generate_qr(encrypted_b64)
     st.image(qr_buf, caption="Encrypted QR Code")
-    st.session_state['encrypted'] = encrypted
+    st.session_state['encrypted_b64'] = encrypted_b64  # Store for convenience
+    st.session_state['plaintext'] = plaintext  # For optional session-based verification
     st.session_state['encrypt_bhava'] = encrypt_bhava
-    st.session_state['plaintext'] = plaintext  # For verification
     st.download_button("Download QR", qr_buf, "encrypted_qr.png")
 st.markdown("""
-**Explanation**: Encrypts plaintext by XOR with Maheshwara-derived key (bhava-dependent). Base64 encodes result, embeds in QR. This provides PQC-resistant obfuscation tied to Sanskrit-inspired hashing.
+**Explanation**: Obfuscates plaintext by XOR with Maheshwara-derived key (bhava-dependent). Base64 encodes result, embeds in QR. This provides PQC-resistant obfuscation tied to Sanskrit-inspired hashing.
+Note: This is a demo verification scheme where the 'key' depends on the plaintext, allowing self-verification of guessed plaintext and bhava.
 """)
 
-decrypt_bhava = st.selectbox("Decryption Bhāva Guess", list(BHAVA_MAP.keys()), index=0)
+# Decryption Section
+st.subheader("Decryption and Verification")
+decrypt_bhava = st.selectbox("Guessed Bhāva for Decryption", list(BHAVA_MAP.keys()), index=0)
+guessed_plaintext = st.text_input("Enter Guessed Plaintext", value="Secret Mantra")
 scanned_data = st.text_input("Enter Scanned QR Data (Base64)", value="")
 
-# New Feature: Upload QR Image for Decoding
+# Upload QR Image for Decoding
 uploaded_qr = st.file_uploader("Upload QR Code Image for Decryption", type=["png", "jpg", "jpeg"])
 if uploaded_qr:
     try:
         image = Image.open(uploaded_qr)
         decoded_data = decode_qr_from_image(image)
         if decoded_data:
-            scanned_data = decoded_data  # Override text input with decoded data
+            scanned_data = decoded_data  # Override text input
             st.success("QR Code Decoded Successfully!")
             st.write(f"Decoded Base64 Data: {scanned_data}")
         else:
@@ -286,27 +290,29 @@ if uploaded_qr:
         st.error(f"Error decoding QR: {e}")
 
 if st.button("Decrypt and Verify"):
-    if 'plaintext' in st.session_state:  # For demo verification; in real app, plaintext might not be stored
-        encrypted_b64 = scanned_data
-        if encrypted_b64:
-            try:
-                encrypted = base64.b64decode(encrypted_b64)
-                _, key_bytes = maheshwara_hash(st.session_state['plaintext'] + decrypt_bhava, decrypt_bhava)
-                key = key_bytes[:len(encrypted)]
-                decrypted = bytes([b ^ key[i % len(key)] for i, b in enumerate(encrypted)]).decode(errors='ignore')
-                st.write(f"Decrypted: {decrypted}")
-                if decrypt_bhava == st.session_state['encrypt_bhava'] and decrypted == st.session_state['plaintext']:
-                    st.success("Bhāva Match - Decryption Successful!")
-                else:
-                    st.error("Bhāva Mismatch or Data Error - Garbled Output!")
-            except Exception as e:
-                st.error(f"Decryption Error: {e}")
-        else:
-            st.warning("Provide scanned data or upload a QR image.")
+    encrypted_b64 = scanned_data or st.session_state.get('encrypted_b64', '')
+    if encrypted_b64 and guessed_plaintext:
+        try:
+            encrypted = base64.b64decode(encrypted_b64)
+            _, key_bytes = maheshwara_hash(guessed_plaintext + decrypt_bhava, decrypt_bhava)
+            key = key_bytes[:len(encrypted)]
+            decrypted = bytes([b ^ key[i % len(key)] for i, b in enumerate(encrypted)]).decode(errors='ignore')
+            st.write(f"Decrypted Output: {decrypted}")
+            if decrypted == guessed_plaintext:
+                st.success("Match! Correct Plaintext and Bhāva Verified.")
+            else:
+                st.error("No Match - Incorrect Plaintext or Bhāva.")
+            # Optional session check if available
+            if 'plaintext' in st.session_state and 'encrypt_bhava' in st.session_state:
+                if guessed_plaintext == st.session_state['plaintext'] and decrypt_bhava == st.session_state['encrypt_bhava']:
+                    st.info("Session Confirmation: Matches Encrypted Data.")
+        except Exception as e:
+            st.error(f"Decryption Error: {e}")
     else:
-        st.warning("Encrypt first to simulate decryption with verification. Alternatively, provide original plaintext for key derivation.")
+        st.warning("Provide Base64 data (via upload or input) and a guessed plaintext to verify.")
+
 st.markdown("""
-**Explanation**: Decrypts by reversing XOR with guessed Bhāva-derived key. Now supports uploading QR images for automatic decoding using pyzbar. Verifies if Bhāva matches for correct output. This feature extends the hash to symmetric encryption for QR-based secure sharing.
+**Explanation**: Verifies by deriving key from guessed plaintext + bhava, 'decrypting' the obfuscated data, and checking if output matches guess. A match confirms the correct plaintext and bhava were used originally. Supports uploading QR images for automatic decoding using pyzbar. This demonstrates intention-based verification rather than traditional decryption.
 """)
 
 # Blockchain Demo Section
